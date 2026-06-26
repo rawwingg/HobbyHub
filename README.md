@@ -10,6 +10,16 @@ VibrantAD is a Streamlit city-intelligence prototype for the Abu Dhabi AI PropTe
 
 **Requirements:** Python 3.10+
 
+**One command:**
+
+```bash
+git clone https://github.com/rawwingg/HobbyHub.git
+cd HobbyHub
+./quickstart.sh
+```
+
+**Or manually:**
+
 ```bash
 git clone https://github.com/rawwingg/HobbyHub.git
 cd HobbyHub
