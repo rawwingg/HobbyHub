@@ -64,6 +64,7 @@ def create_district_vibrancy_map(
                 ("Vibrancy", f"{row['vibrancy_score']:.1f}"),
                 ("Experience", f"{row['resident_experience_score']:.0f}"),
                 ("Mobility", f"{row['mobility_score']:.0f}"),
+                ("Connectivity", f"{row.get('community_connectivity_score', row['vibrancy_score']):.0f}"),
                 ("Sports amenities", str(int(row["sports_amenity_count"]))),
                 ("Cultural amenities", str(int(row["cultural_amenity_count"]))),
                 ("Optimization", f"{row['optimization_score']:.1f}"),
@@ -137,6 +138,26 @@ def create_amenity_layers_map(
     return fmap
 
 
+def _event_popup(ev: pd.Series) -> str:
+    """Rich event popup with community join CTA styling."""
+    start_str = ev["start_time"].strftime("%a %d %b, %H:%M")
+    badge_color = UAE_COLORS["green"] if ev["event_type"] == "Sports" else "#6B3FA0"
+    return (
+        f"<div style='font-family:Arial;min-width:220px;'>"
+        f"<span style='background:{badge_color};color:white;padding:2px 8px;"
+        f"border-radius:12px;font-size:11px;'>● LIVE</span> "
+        f"<span style='background:{UAE_COLORS['sand']};padding:2px 8px;"
+        f"border-radius:12px;font-size:11px;'>{ev['interest']}</span>"
+        f"<h4 style='margin:8px 0 4px;color:{UAE_COLORS['dark']};'>{ev['title']}</h4>"
+        f"<p style='margin:0 0 6px;color:#555;font-size:13px;'>"
+        f"📍 {ev['district']} · {ev['amenity_name'][:36]}</p>"
+        f"<p style='margin:0;color:#333;'><b>🕐 {start_str}</b></p>"
+        f"<p style='margin:6px 0 0;color:#00732F;font-size:12px;'>"
+        f"👥 {ev['spots_available']} neighbours joining · Community meetup</p>"
+        f"</div>"
+    )
+
+
 def create_events_map(
     events: pd.DataFrame,
     district_metrics: pd.DataFrame | None = None,
@@ -148,47 +169,38 @@ def create_events_map(
 
     if show_districts and district_metrics is not None:
         for _, row in district_metrics.iterrows():
-            folium.CircleMarker(
+            conn = row.get("community_connectivity_score", row["vibrancy_score"])
+            folium.Circle(
                 location=[row["latitude"], row["longitude"]],
-                radius=6,
+                radius=1800 + conn * 20,
                 color=UAE_COLORS["gold"],
                 fill=True,
                 fill_color=UAE_COLORS["gold"],
-                fill_opacity=0.25,
+                fill_opacity=0.06,
                 weight=1,
-                tooltip=f"{row['district']} · Vibrancy {row['vibrancy_score']:.0f}",
+                tooltip=f"{row['district']} · Connectivity {conn:.0f}",
             ).add_to(fmap)
 
     if events.empty:
         folium.Marker(
             ABU_DHABI_CENTER,
-            popup="No events match your filters",
+            popup="No events match your filters — try broadening interests or time range",
             icon=folium.Icon(color="gray", icon="info-sign"),
         ).add_to(fmap)
         return fmap
 
-    sports_cluster = MarkerCluster(name="Sports Events")
-    cultural_cluster = MarkerCluster(name="Cultural Events")
+    sports_cluster = MarkerCluster(name="⚽ Sports & Active")
+    cultural_cluster = MarkerCluster(name="🎭 Culture & Community")
 
     for _, ev in events.iterrows():
         start_str = ev["start_time"].strftime("%a %d %b, %H:%M")
-        popup = _popup_html(
-            ev["title"],
-            [
-                ("When", start_str),
-                ("Interest", ev["interest"]),
-                ("Type", ev["event_type"]),
-                ("District", ev["district"]),
-                ("Venue", ev["amenity_name"][:40]),
-                ("Spots left", str(ev["spots_available"])),
-            ],
-        )
+        popup = _event_popup(ev)
         icon_color = "green" if ev["event_type"] == "Sports" else "purple"
         marker = folium.Marker(
             location=[ev["latitude"], ev["longitude"]],
-            popup=folium.Popup(popup, max_width=300),
-            tooltip=f"LIVE · {ev['title']} · {start_str}",
-            icon=folium.Icon(color=icon_color, icon="calendar"),
+            popup=folium.Popup(popup, max_width=320),
+            tooltip=f"● {ev['title']} · {start_str}",
+            icon=folium.Icon(color=icon_color, icon="calendar", prefix="glyphicon"),
         )
         target = sports_cluster if ev["event_type"] == "Sports" else cultural_cluster
         marker.add_to(target)
@@ -230,17 +242,13 @@ def create_client_personalized_map(
             tooltip=f"Recommended: {row['district']}",
         ).add_to(fmap)
 
-    event_cluster = MarkerCluster(name="Events For You")
+    event_cluster = MarkerCluster(name="❤️ Events For You")
     for _, ev in events.iterrows():
-        start_str = ev["start_time"].strftime("%a %d %b, %H:%M")
         folium.Marker(
             location=[ev["latitude"], ev["longitude"]],
-            popup=folium.Popup(
-                _popup_html(ev["title"], [("When", start_str), ("Interest", ev["interest"])]),
-                max_width=260,
-            ),
-            tooltip=f"{ev['title']} · {ev['interest']}",
-            icon=folium.Icon(color="green", icon="heart"),
+            popup=folium.Popup(_event_popup(ev), max_width=320),
+            tooltip=f"❤️ {ev['title']} · {ev['interest']}",
+            icon=folium.Icon(color="green", icon="heart", prefix="glyphicon"),
         ).add_to(event_cluster)
 
     event_cluster.add_to(fmap)

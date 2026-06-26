@@ -228,10 +228,35 @@ def compute_district_metrics(
         df["optimization_score"],
     )
     df["sports_density"] = normalize_series(df["sports_amenity_count"])
+    df["community_connectivity_score"] = (
+        0.35 * df["service_demand_fulfillment"]
+        + 0.35 * df["mobility_score"]
+        + 0.30 * normalize_series(df["total_amenities"])
+    ).round(1)
     df["intervention_suggestion"] = df["top_optimization"].map(
         lambda x: OPTIMIZATION_LABELS.get(x, str(x).replace("_", " ").title())
     )
     return df.sort_values("vibrancy_score", ascending=False).reset_index(drop=True)
+
+
+def generate_community_pulse(
+    events: pd.DataFrame,
+    district_metrics: pd.DataFrame,
+    seed: int = 42,
+) -> dict:
+    """Simulated live community engagement stats for demo storytelling."""
+    rng = random.Random(seed)
+    week_events = filter_events_by_time(events, "This Week")
+    top_district = district_metrics.iloc[0]["district"]
+    return {
+        "active_residents_today": rng.randint(840, 2100),
+        "events_this_week": len(week_events),
+        "districts_with_events": int(week_events["district"].nunique()) if not week_events.empty else 0,
+        "new_connections_week": rng.randint(120, 480),
+        "top_community_hub": top_district,
+        "avg_connectivity": round(district_metrics["community_connectivity_score"].mean(), 1),
+        "meetups_today": len(filter_events_by_time(events, "Today")),
+    }
 
 
 def generate_events(
