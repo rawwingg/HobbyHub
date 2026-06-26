@@ -40,13 +40,25 @@ def _popup_html(title: str, rows: list[tuple[str, str]]) -> str:
     )
 
 
+def _fit_map_to_frame(fmap: folium.Map, points: pd.DataFrame, padding: float = 0.08) -> None:
+    if points.empty:
+        return
+
+    latitudes = points["latitude"].astype(float)
+    longitudes = points["longitude"].astype(float)
+    south_west = [latitudes.min() - padding, longitudes.min() - padding]
+    north_east = [latitudes.max() + padding, longitudes.max() + padding]
+    fmap.fit_bounds([south_west, north_east])
+
+
 def create_district_vibrancy_map(
     district_metrics: pd.DataFrame,
     color_by: str = "vibrancy_score",
     zoom: int = 11,
 ) -> folium.Map:
-    """District centroids colored by vibrancy or optimization score."""
+    """District vibrancy as a stable, labelled score map."""
     fmap = folium.Map(location=ABU_DHABI_CENTER, zoom_start=zoom, tiles="CartoDB positron")
+    _fit_map_to_frame(fmap, district_metrics)
 
     colormap = cm.LinearColormap(
         colors=[UAE_COLORS["red"], UAE_COLORS["gold"], UAE_COLORS["green"]],
@@ -72,12 +84,12 @@ def create_district_vibrancy_map(
         )
         folium.CircleMarker(
             location=[row["latitude"], row["longitude"]],
-            radius=8 + score / 12,
-            color=_score_color(score),
+            radius=5,
+            color="#1A1A2E",
             fill=True,
             fill_color=colormap(score),
-            fill_opacity=0.75,
-            weight=2,
+            fill_opacity=0.9,
+            weight=1,
             popup=folium.Popup(popup, max_width=280),
             tooltip=f"{row['district']}: {score:.1f}",
         ).add_to(fmap)
@@ -149,10 +161,10 @@ def _event_popup(ev: pd.Series) -> str:
         f"<span style='background:{UAE_COLORS['sand']};padding:2px 8px;"
         f"border-radius:12px;font-size:11px;'>{ev['interest']}</span>"
         f"<h4 style='margin:8px 0 4px;color:{UAE_COLORS['dark']};'>{ev['title']}</h4>"
-        f"<p style='margin:0 0 6px;color:#555;font-size:13px;'>"
+        f"<p style='margin:0 0 6px;color:#425066;font-size:13px;line-height:1.45;'>"
         f"📍 {ev['district']} · {ev['amenity_name'][:36]}</p>"
-        f"<p style='margin:0;color:#333;'><b>🕐 {start_str}</b></p>"
-        f"<p style='margin:6px 0 0;color:#00732F;font-size:12px;'>"
+        f"<p style='margin:0;color:#243044;'><b>🕐 {start_str}</b></p>"
+        f"<p style='margin:6px 0 0;color:{UAE_COLORS['green']};font-size:12px;line-height:1.45;'>"
         f"👥 {ev['spots_available']} neighbours joining · Community meetup</p>"
         f"</div>"
     )
@@ -166,6 +178,7 @@ def create_events_map(
 ) -> folium.Map:
     """Client events layer with live-style pins."""
     fmap = folium.Map(location=ABU_DHABI_CENTER, zoom_start=zoom, tiles="CartoDB positron")
+    _fit_map_to_frame(fmap, district_metrics)
 
     if show_districts and district_metrics is not None:
         for _, row in district_metrics.iterrows():
@@ -218,6 +231,7 @@ def create_client_personalized_map(
 ) -> folium.Map:
     """Personalized client map highlighting recommended districts and matching events."""
     fmap = folium.Map(location=ABU_DHABI_CENTER, zoom_start=zoom, tiles="CartoDB positron")
+    _fit_map_to_frame(fmap, recommended_districts)
 
     for _, row in recommended_districts.iterrows():
         folium.Circle(
